@@ -5,6 +5,7 @@ Uses LangGraph with Ollama for agentic workflow
 
 import os
 import sys
+import json
 from typing import TypedDict, List, Annotated
 from datetime import datetime, timedelta
 from dataclasses import dataclass
@@ -12,7 +13,6 @@ import logging
 
 # LangGraph imports
 from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import create_react_agent
 
 # LangChain + Ollama
 from langchain_community.chat_models import ChatOllama
@@ -124,7 +124,7 @@ def get_upcoming_events() -> str:
 
 
 @tool
-def run_forecast_model(station_id: str, product: str = "super", days: int = 7) -> str:
+def run_forecast_model(station_id: str, product: str = "super", days: int = 7) -> dict:
     """
     Run ML forecast model for a station.
     
@@ -134,7 +134,7 @@ def run_forecast_model(station_id: str, product: str = "super", days: int = 7) -
         days: Forecast horizon
         
     Returns:
-        Forecast results
+        Forecast results as dict
     """
     # Simulated forecast
     base_volume = np.random.randint(8000, 12000)
@@ -142,24 +142,29 @@ def run_forecast_model(station_id: str, product: str = "super", days: int = 7) -
     
     for i in range(days):
         date = datetime.now() + timedelta(days=i)
-        # Add some variation
         volume = base_volume * (1 + 0.1 * np.sin(2 * np.pi * i / 7))
         volume = int(volume + np.random.randint(-1000, 1000))
         forecasts.append({
             "date": date.strftime("%Y-%m-%d"),
+            "day": date.strftime("%A"),
             "predicted_volume": max(0, volume),
             "confidence": 0.85
         })
     
-    result = f"Forecast for {station_id} - {product} ({days} days):\n"
-    for f in forecasts:
-        result += f"- {f['date']}: {f['predicted_volume']:,}L (conf: {f['confidence']:.0%})\n"
-    
-    return result
+    return {
+        "station_id": station_id,
+        "product": product,
+        "days": days,
+        "forecasts": forecasts,
+        "metadata": {
+            "generated_at": datetime.now().isoformat(),
+            "model": "CYSMIC-ML-Ensemble"
+        }
+    }
 
 
 @tool
-def check_inventory(station_id: str) -> str:
+def check_inventory(station_id: str) -> dict:
     """
     Check current inventory levels at a station.
     
@@ -167,19 +172,29 @@ def check_inventory(station_id: str) -> str:
         station_id: Station ID
         
     Returns:
-        Inventory status
+        Inventory status as dict
     """
     products = ["super", "diesel", "kerosene"]
     capacity = 50000
     
-    result = f"Inventory Status - {station_id}:\n"
+    inventory = []
     for product in products:
         level = np.random.randint(10000, capacity)
         pct = level / capacity * 100
-        status = "🟢" if pct > 30 else "🟡" if pct > 15 else "🔴"
-        result += f"- {product}: {level:,}L ({pct:.0f}%) {status}\n"
+        status = "OK" if pct > 30 else "LOW" if pct > 15 else "CRITICAL"
+        inventory.append({
+            "product": product,
+            "level_liters": level,
+            "capacity_liters": capacity,
+            "percentage": round(pct, 1),
+            "status": status
+        })
     
-    return result
+    return {
+        "station_id": station_id,
+        "checked_at": datetime.now().isoformat(),
+        "inventory": inventory
+    }
 
 
 @tool
@@ -200,6 +215,75 @@ def generate_alert(message: str, severity: str = "medium") -> str:
 
 
 # ============================================================
+# EXPORT FUNCTIONS
+# ============================================================
+
+def export_to_csv(data: dict, filename: str = None) -> str:
+    """Export forecast data to CSV."""
+    if "forecasts" not in data:
+        return "No forecast data to export"
+    
+    df = pd.DataFrame(data["forecasts"])
+    
+    if not filename:
+        filename = f"forecast_{data.get('station_id', 'unknown')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    
+    df.to_csv(filename, index=False)
+    return f"✅ Exported to {filename}"
+
+
+def export_to_excel(data: dict, filename: str = None) -> str:
+    """Export forecast data to Excel with formatting."""
+    if "forecasts" not in data:
+        return "No forecast data to export"
+    
+    if not filename:
+        filename = f"forecast_{data.get('station_id', 'unknown')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    
+    df = pd.DataFrame(data["forecasts"])
+    
+    with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Forecast', index=False)
+        
+        # Add summary sheet
+        summary_df = pd.DataFrame([{
+            "Station": data.get("station_id", "N/A"),
+            "Product": data.get("product", "N/A"),
+            "Days": data.get("days", "N/A"),
+            "Generated": data.get("metadata", {}).get("generated_at", "N/A"),
+            "Total Volume (L)": df["predicted_volume"].sum(),
+            "Avg Daily (L)": df["predicted_volume"].mean(),
+        }])
+        summary_df.to_excel(writer, sheet_name='Summary', index=False)
+    
+    return f"✅ Exported to {filename}"
+
+
+def format_markdown_table(data: dict) -> str:
+    """Format forecast data as markdown table."""
+    if "forecasts" not in data:
+        return "No data"
+    
+    forecasts = data["forecasts"]
+    
+    md = f"## 📊 Forecast: {data.get('station_id', 'N/A')} - {data.get('product', 'N/A').title()}\n\n"
+    md += f"**Generated:** {data.get('metadata', {}).get('generated_at', 'N/A')}\n\n"
+    md += "| Date | Day | Predicted Volume (L) | Confidence |\n"
+    md += "|------|-----|---------------------|------------|\n"
+    
+    for f in forecasts:
+        conf_pct = f"{f.get('confidence', 0) * 100:.0f}%"
+        md += f"| {f['date']} | {f['day']} | {f['predicted_volume']:,} | {conf_pct} |\n"
+    
+    total = sum(f['predicted_volume'] for f in forecasts)
+    avg = total / len(forecasts)
+    
+    md += f"\n**Total:** {total:,} L | **Avg Daily:** {avg:,.0f} L\n"
+    
+    return md
+
+
+# ============================================================
 # LANGGRAPH NODES
 # ============================================================
 
@@ -208,8 +292,6 @@ def data_agent_node(state: AgentState) -> AgentState:
     logger.info("Running Data Agent...")
     
     task = state.get("task", "")
-    
-    # Gather relevant data based on task
     context = {}
     
     if "forecast" in task.lower():
@@ -229,11 +311,21 @@ def ml_agent_node(state: AgentState) -> AgentState:
     task = state.get("task", "")
     context = state.get("context", {})
     
-    # Run forecast if needed
     if "forecast" in task.lower():
+        # Extract station from task
+        parts = task.split()
+        station = "NBO001"
+        product = "super"
+        
+        for i, part in enumerate(parts):
+            if part.upper() in ["NBO001", "NBO002", "MBA001", "KSM001", "NKS001"]:
+                station = part.upper()
+            if part.lower() in ["super", "diesel", "kerosene"]:
+                product = part.lower()
+        
         forecast_result = run_forecast_model.invoke({
-            "station_id": "NBO001",
-            "product": "super",
+            "station_id": station,
+            "product": product,
             "days": 7
         })
         context["forecast"] = forecast_result
@@ -245,7 +337,6 @@ def llm_agent_node(state: AgentState) -> AgentState:
     """LLM Agent: Reasoning and explanation."""
     logger.info("Running LLM Agent...")
     
-    # Get the LLM (Ollama)
     try:
         llm = ChatOllama(
             model="llama3.1",
@@ -253,7 +344,6 @@ def llm_agent_node(state: AgentState) -> AgentState:
             temperature=0.3
         )
         
-        # Build context for reasoning
         context = state.get("context", {})
         task = state.get("task", "")
         
@@ -271,13 +361,12 @@ Provide a clear, actionable analysis. Include:
 2. Factors affecting demand
 3. Recommendations for the station manager
 
-Be concise and practical.
+Be concise and practical. Use markdown formatting.
 """
         messages = state.get("messages", [])
         messages.append(HumanMessage(content=prompt))
         
         response = llm.invoke(messages)
-        
         messages.append(response)
         
         return {
@@ -291,13 +380,6 @@ Be concise and practical.
         return {**state, "error": str(e)}
 
 
-def should_continue(state: AgentState) -> str:
-    """Routing logic."""
-    if state.get("error"):
-        return "end"
-    return "continue"
-
-
 # ============================================================
 # GRAPH CONSTRUCTION
 # ============================================================
@@ -307,15 +389,11 @@ def create_forecasting_graph() -> StateGraph:
     
     workflow = StateGraph(AgentState)
     
-    # Add nodes
     workflow.add_node("data_agent", data_agent_node)
     workflow.add_node("ml_agent", ml_agent_node)
     workflow.add_node("llm_agent", llm_agent_node)
     
-    # Set entry point
     workflow.set_entry_point("data_agent")
-    
-    # Add edges
     workflow.add_edge("data_agent", "ml_agent")
     workflow.add_edge("ml_agent", "llm_agent")
     workflow.add_edge("llm_agent", END)
@@ -332,7 +410,7 @@ def print_banner():
     print("""
 ╔═══════════════════════════════════════════════════════════╗
 ║   CYSMIC Fuel Forecasting - Agentic CLI                ║
-║   Powered by LangGraph + Ollama                           ║
+║   Powered by LangGraph + Ollama                         ║
 ╚═══════════════════════════════════════════════════════════╝
     """)
 
@@ -340,19 +418,170 @@ def print_banner():
 def print_menu():
     """Print main menu."""
     print("""
-Commands:
-  forecast <station_id>  - Run demand forecast
-  inventory <station_id> - Check inventory levels  
-  ask <question>        - Ask a question
-  status                - System status
-  help                  - Show this menu
-  quit                  - Exit
+## Commands
 
-Examples:
-  forecast NBO001
-  inventory NBO001
-  ask What's the diesel demand for next week?
+| Command | Description |
+|---------|-------------|
+| `forecast <station> [product]` | Run demand forecast |
+| `inventory <station>` | Check inventory levels |
+| `ask <question>` | Ask a question |
+| `export csv [filename]` | Export last forecast to CSV |
+| `export xlsx [filename]` | Export last forecast to Excel |
+| `status` | System status |
+| `help` | Show this menu |
+| `quit` | Exit |
+
+## Examples
+```
+forecast NBO001
+forecast NBO002 diesel
+inventory MBA001
+ask What's the diesel demand for next week?
+export csv my-forecast
+```
     """)
+
+
+class CYSMICCLI:
+    """CYSMIC CLI with state management."""
+    
+    def __init__(self):
+        self.graph = create_forecasting_graph()
+        self.last_forecast = None
+        self.ollama_connected = False
+        self.check_ollama()
+    
+    def check_ollama(self):
+        """Check Ollama connection."""
+        try:
+            llm = ChatOllama(model="llama3.1", base_url="http://localhost:11434")
+            llm.invoke([HumanMessage(content="hi")])
+            self.ollama_connected = True
+        except:
+            pass
+    
+    def cmd_forecast(self, args: str) -> str:
+        """Run forecast command."""
+        parts = args.split()
+        station = parts[0] if parts else "NBO001"
+        product = parts[1] if len(parts) > 1 else "super"
+        
+        # Validate station
+        valid_stations = ["NBO001", "NBO002", "MBA001", "KSM001", "NKS001"]
+        if station.upper() not in valid_stations:
+            return f"❌ Invalid station. Valid: {', '.join(valid_stations)}"
+        
+        if product.lower() not in ["super", "diesel", "kerosene"]:
+            return f"❌ Invalid product. Valid: super, diesel, kerosene"
+        
+        station = station.upper()
+        product = product.lower()
+        
+        print(f"🔮 Running forecast for **{station}** ({product})...")
+        
+        # Run ML agent directly
+        forecast_result = run_forecast_model.invoke({
+            "station_id": station,
+            "product": product,
+            "days": 7
+        })
+        
+        self.last_forecast = forecast_result
+        
+        # Format as markdown
+        md = format_markdown_table(forecast_result)
+        
+        # Try LLM analysis if available
+        if self.ollama_connected:
+            print("🤖 Running LLM analysis...")
+            try:
+                initial_state = {
+                    "messages": [],
+                    "context": {"forecast": forecast_result},
+                    "task": f"Analyze this forecast for station {station}",
+                    "result": {}
+                }
+                result = self.graph.invoke(initial_state)
+                if "messages" in result and len(result["messages"]) > 0:
+                    analysis = result["messages"][-1].content
+                    md += f"\n---\n### 🤖 Analysis\n{analysis}\n"
+            except Exception as e:
+                print(f"⚠️  LLM analysis failed: {e}")
+        
+        return md
+    
+    def cmd_inventory(self, args: str) -> str:
+        """Check inventory command."""
+        station = args.split()[0] if args else "NBO001"
+        
+        result = check_inventory.invoke({"station_id": station})
+        
+        md = f"## 📦 Inventory: {station}\n\n"
+        md += f"**Checked:** {result['checked_at']}\n\n"
+        md += "| Product | Level (L) | Capacity | % | Status |\n"
+        md += "|---------|-----------|----------|---|--------|\n"
+        
+        for item in result["inventory"]:
+            status_icon = "🟢" if item["status"] == "OK" else "🟡" if item["status"] == "LOW" else "🔴"
+            md += f"| {item['product'].title()} | {item['level_liters']:,} | {item['capacity_liters']:,} | {item['percentage']}% | {status_icon} {item['status']} |\n"
+        
+        return md
+    
+    def cmd_export(self, args: str) -> str:
+        """Export command."""
+        if not self.last_forecast:
+            return "❌ No forecast data to export. Run `forecast` first."
+        
+        parts = args.split()
+        fmt = parts[0] if parts else "csv"
+        filename = parts[1] if len(parts) > 1 else None
+        
+        if fmt == "csv":
+            return export_to_csv(self.last_forecast, filename)
+        elif fmt == "xlsx" or fmt == "excel":
+            return export_to_excel(self.last_forecast, filename)
+        else:
+            return f"❌ Unknown format: {fmt}. Use `csv` or `xlsx`."
+    
+    def cmd_ask(self, args: str) -> str:
+        """Ask command."""
+        if not args:
+            return "❌ Please provide a question."
+        
+        if not self.ollama_connected:
+            return "❌ Ollama not connected. Run `ollama serve` first."
+        
+        print("🤔 Thinking...")
+        
+        initial_state = {
+            "messages": [],
+            "context": {"forecast": self.last_forecast} if self.last_forecast else {},
+            "task": args,
+            "result": {}
+        }
+        
+        try:
+            result = self.graph.invoke(initial_state)
+            if "messages" in result and len(result["messages"]) > 0:
+                response = result["messages"][-1].content
+                return f"## 💡 Answer\n\n{response}"
+        except Exception as e:
+            return f"❌ Error: {e}"
+        
+        return "❌ No response generated."
+    
+    def cmd_status(self) -> str:
+        """Status command."""
+        status = """## 🔧 System Status
+
+| Component | Status |
+|-----------|--------|
+| **LLM (Ollama)** | ✅ Connected" if self.ollama_connected else "❌ Not connected"
+| **ML Models** | ✅ Ready |
+| **LangGraph** | ✅ Active |
+| **Data** | ✅ Sample Data |
+"""
+        return status
 
 
 def run_cli():
@@ -360,25 +589,19 @@ def run_cli():
     print_banner()
     print_menu()
     
-    # Create graph
-    graph = create_forecasting_graph()
+    cli = CYSMICCLI()
     
-    # Check Ollama
-    try:
-        llm = ChatOllama(model="llama3.1", base_url="http://localhost:11434")
-        print("✅ Ollama connected (llama3.1)\n")
-    except Exception as e:
-        print(f"⚠️  Ollama not connected: {e}")
-        print("   Run 'ollama serve' to start\n")
+    status_msg = "✅ Ollama connected (llama3.1)\n" if cli.ollama_connected else "⚠️  Ollama not connected - LLM features disabled\n"
+    print(status_msg)
     
     while True:
         try:
-            user_input = input("cysmic> ").strip()
+            user_input = input("\n❯ ").strip()
             
             if not user_input:
                 continue
             
-            parts = user_input.split(maxsplit=1)
+            parts = user_input.split(maxsplit=2)
             command = parts[0].lower()
             args = parts[1] if len(parts) > 1 else ""
             
@@ -390,63 +613,28 @@ def run_cli():
                 print_menu()
             
             elif command == "status":
-                print("System Status:")
-                print("  🤖 LLM: llama3.1 (Ollama)")
-                print("  📊 ML: XGBoost, Prophet (ready)")
-                print("  🌐 LangGraph: Active")
+                print(cli.cmd_status())
             
             elif command == "forecast":
-                station = args if args else "NBO001"
-                print(f"🔮 Running forecast for {station}...")
-                
-                initial_state = {
-                    "messages": [],
-                    "context": {},
-                    "task": f"Run demand forecast for station {station}",
-                    "result": {}
-                }
-                
-                result = graph.invoke(initial_state)
-                
-                if "result" in result:
-                    print("\n📊 Forecast Results:")
-                    if "analysis" in result["result"]:
-                        print(result["result"]["analysis"])
+                print(cli.cmd_forecast(args))
             
             elif command == "inventory":
-                station = args if args else "NBO001"
-                print(f"📦 Checking inventory for {station}...")
-                print(check_inventory.invoke({"station_id": station}))
+                print(cli.cmd_inventory(args))
+            
+            elif command == "export":
+                print(cli.cmd_export(args))
             
             elif command == "ask":
-                if not args:
-                    print("Please provide a question.")
-                    continue
-                
-                print("🤔 Thinking...")
-                
-                initial_state = {
-                    "messages": [],
-                    "context": {},
-                    "task": args,
-                    "result": {}
-                }
-                
-                result = graph.invoke(initial_state)
-                
-                if "messages" in result and len(result["messages"]) > 0:
-                    response = result["messages"][-1]
-                    print(f"\n💡 {response.content}")
+                print(cli.cmd_ask(args))
             
             else:
-                print(f"Unknown command: {command}")
-                print("Type 'help' for available commands.")
+                print(f"❓ Unknown command: `{command}`\nType `help` for available commands.")
         
         except KeyboardInterrupt:
             print("\nGoodbye! 👋")
             break
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"❌ Error: {e}")
 
 
 if __name__ == "__main__":
