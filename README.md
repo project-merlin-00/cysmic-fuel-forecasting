@@ -11,15 +11,29 @@ This project implements the framework described in the EPRA 2026 Research Paper:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    ORCHESTRATION LAYER                     │
-│                    (Controller Agent)                       │
+│                    (Controller Agent - LangGraph)           │
 ├─────────────────────────────────────────────────────────────┤
-│  ML Ensemble (Prophet, LSTM, XGBoost)  │  LLM Engine      │
+│  Data Agent  │  ML Ensemble (Prophet, LSTM, XGBoost)  │  LLM Engine (Ollama) │
 ├─────────────────────────────────────────────────────────────┤
 │                    DATA LAYER                               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Components
+For detailed diagrams, see [docs/architecture.md](docs/architecture.md) (Mermaid.js)
+
+### Generate Professional Diagrams
+
+**Option 1: Mermaid.js** (in docs/architecture.md)
+- Renders in GitHub, VS Code, Obsidian
+- Copy to [mermaid.live](https://mermaid.live) for PNG/SVG export
+
+**Option 2: Excalidraw** 
+- Open https://excalidraw.com
+- Use prompts from `skills/diagram-generator/prompts.md`
+
+**Option 3: draw.io**
+- Open https://app.diagrams.net
+- Professional diagrams with extensive icon library
 
 - `src/data/` - Data ingestion and preprocessing
 - `src/models/` - ML model implementations
