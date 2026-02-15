@@ -1,141 +1,166 @@
 # CYSMIC Fuel Forecasting - Architecture Diagrams
 
-> Rendered at [mermaid.live](https://mermaid.live) - export as PNG/SVG
+> Render at [mermaid.live](https://mermaid.live) - Kenya Oil & Gas Retail AI System
 
 ---
 
-## System Architecture
+## System Architecture - Fuel Demand Forecasting
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4a90d9', 'edgeLabelBackground':'#ffffff', 'tertiaryColor': '#f5f5f5'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4a90d9', 'edgeLabelBackground':'#ffffff'}}}%%
 flowchart TB
-    subgraph Presentation["📱 Presentation Layer"]
+    subgraph Client["📱 Client Interface"]
         direction LR
         CLI[CLI/TUI]
         API[REST API]
-        Dashboard[Dashboard]
     end
     
-    subgraph Orchestration["⚙️ Orchestration Layer"]
-        Controller[Controller<br/>LangGraph]
-        Scheduler[Workflow<br/>Scheduler]
+    subgraph Orchestration["⚙️ LangGraph Controller"]
+        CA[Controller<br/>Agent]
+        WS[Workflow<br/>Scheduler]
     end
     
     subgraph Intelligence["🧠 Intelligence Layer"]
-        direction LR
-        ML[ML Ensemble<br/>Prophet<br/>LSTM<br/>XGBoost]
-        LLM[LLM Agent<br/>Ollama<br/>LangChain]
+        direction TB
+        subgraph ML["ML Ensemble"]
+            Prophet[📈 Prophet<br/>Seasonality]
+            LSTM[🧠 LSTM<br/>Temporal]
+            XGB[🎯 XGBoost<br/>Features]
+        end
+        subgraph LLM["LLM Agent"]
+            Ollama[Ollama<br/>LLM]
+            Chain[LangChain<br/>Tools]
+        end
     end
     
-    subgraph Data["💾 Data Layer"]
+    subgraph Data["💾 Data Layer - Kenya O&G Retail"]
         direction LR
-        POS[POS Sales]
-        Weather[Weather API]
-        Events[Events]
-        Prices[Fuel Prices]
-        Stations[Station Meta]
+        POS[POS Sales<br/>Data]
+        Weather[🌤️ Kenya Met<br/>API]
+        Events[📅 Calendar<br/>Holidays]
+        Prices[⛽ EPRA<br/>Prices]
+        Stations[⛽ Station<br/>Metadata]
     end
     
-    Presentation --> Controller
-    Controller --> Orchestration
-    Orchestration --> Intelligence
-    Intelligence --> Data
+    Client --> CA
+    CA --> WS
+    CA --> ML
+    CA --> LLM
     
-    Controller --> Scheduler
+    ML --> POS
+    ML --> Weather
+    ML --> Prices
     
-    style Presentation fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-    style Orchestration fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-    style Intelligence fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-    style Data fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    LLM --> Events
+    LLM --> Stations
+    
+    style Client fill:#e3f2fd,stroke:#1976d2
+    style Orchestration fill:#fff3e0,stroke:#f57c00
+    style ML fill:#e8f5e9,stroke:#388e3c
+    style LLM fill:#f3e5f5,stroke:#7b1fa2
+    style Data fill:#fce4ec,stroke:#c2185b
 ```
 
 ---
 
-## Agentic Workflow
+## Agentic Workflow - Demand Forecasting
 
 ```mermaid
 %%{init: {'theme': 'base'}}%%
 flowchart LR
-    Start([Start]) --> DataAgent[📥<br/>Data Agent]
-    DataAgent --> MLAgent[🤖<br/>ML Agent]
-    MLAgent --> LLMAgent[💡<br/>LLM Agent]
-    LLMAgent --> End([End])
+    Start([🚀 Start]) --> DataIngest[📥<br/>Data Agent<br/>Gathers sales<br/>weather<br/>events]
     
-    subgraph State["State Management"]
-        MS[(messages,<br/>context,<br/>task)]
-    end
+    DataIngest --> MLPredict[🤖<br/>ML Agent<br/>Prophet/LSTM<br/>XGBoost]
     
-    DataAgent -.->|reads| MS
-    MLAgent -.->|reads| MS
-    LLMAgent -.->|writes| MS
+    MLPredict --> LLMReason[💡<br/>LLM Agent<br/>Analyzes context<br/>Adjusts forecast]
     
-    style Start fill:#4caf50,stroke:#2e7d32,color:#fff
-    style End fill:#f44336,stroke:#c62828,color:#fff
-    style DataAgent fill:#2196f3,stroke:#1565c0,color:#fff
-    style MLAgent fill:#9c27b0,stroke:#6a1b9a,color:#fff
-    style LLMAgent fill:#ff9800,stroke:#ef6c00,color:#fff
+    LLMReason --> Alert[⚠️<br/>Generate Alerts<br/>Stockout risk<br/>Overstock]
+    
+    Alert --> Output[📤<br/>Forecast Output<br/>7-day prediction<br/>Markdown/CSV]
+    
+    Output --> End([✅ End])
+    
+    style Start fill:#4caf50,color:#fff
+    style DataIngest fill:#2196f3,color:#fff
+    style MLPredict fill:#9c27b0,color:#fff
+    style LLMReason fill:#ff9800,color:#fff
+    style Alert fill:#f44336,color:#fff
+    style Output fill:#00bcd4,color:#fff
+    style End fill:#4caf50,color:#fff
 ```
 
 ---
 
-## ML Ensemble Pipeline
+## Kenya Fuel Retail Data Flow
 
 ```mermaid
 %%{init: {'theme': 'base'}}%%
 flowchart TB
-    Input[📊 Historical<br/>Sales Data] --> Split[Train/Test<br/>Split]
-    
-    subgraph Models["🤖 Model Ensemble"]
+    subgraph Sources["📥 Data Sources"]
         direction LR
-        Prophet[📈 Prophet<br/>Seasonality]
-        LSTM[🧠 LSTM<br/>Temporal]
-        XGB[🎯 XGBoost<br/>Features]
+        EPRA[EPRA<br/>Prices]
+        Met[Kenya Met<br/>Weather]
+        POS[Station POS<br/>Systems]
+        Events[Gov/News<br/>Events]
     end
     
-    Split --> Prophet
-    Split --> LSTM
-    Split --> XGB
-    
-    subgraph Ensemble["⚖️ Weighted Ensemble"]
-        Weights[ weights]
-        Combine[Combine]
+    subgraph Processing["🔧 Processing"]
+        Clean[Data<br/>Cleaning]
+        Validate[Validation]
+        Feature[Feature<br/>Engineering]
     end
     
-    Prophet --> Combine
-    LSTM --> Combine
-    XGB --> Combine
-    Weights -.-> Combine
+    subgraph Models["🤖 ML Models"]
+        direction LR
+        Prophet[Prophet<br/>Seasonality]
+        LSTM[LSTM<br/>Pattern]
+        XGB[XGBoost<br/>Features]
+    end
     
-    Combine --> Output[📤<br/>Forecast<br/>Output]
+    subgraph Output["📤 Outputs"]
+        direction LR
+        Forecast[Demand<br/>Forecast]
+        Alerts[Stock<br/>Alerts]
+        API[REST<br/>API]
+    end
     
-    style Input fill:#e3f2fd,stroke:#1976d2
-    style Models fill:#fff3e0,stroke:#f57c00
-    style Ensemble fill:#e8f5e9,stroke:#388e3c
+    Sources --> Processing
+    Processing --> Models
+    Models --> Output
+    
+    style Sources fill:#e3f2fd,stroke:#1976d2
+    style Processing fill:#fff3e0,stroke:#f57c00
+    style Models fill:#e8f5e9,stroke:#388e3c
     style Output fill:#fce4ec,stroke:#c2185b
 ```
 
 ---
 
-## CLI Commands Flow
+## CLI Workflow - Fuel Forecasting Commands
 
 ```mermaid
 %%{init: {'theme': 'base'}}%%
 flowchart TB
-    User[👤 User] --> CLI[❯ CLI]
+    User[👤 Station<br/>Manager] --> CLI[❯ cysmic]
     
     subgraph Commands["📋 Commands"]
-        FC[forecast]
-        INV[inventory]
-        ASK[ask]
-        EXP[export]
+        FC[forecast<br/>NBO001]
+        INV[inventory<br/>NBO001]
+        ASK[ask<br/>question]
+        EXP[export<br/>csv/xlsx]
     end
     
-    subgraph Execution["⚡ Execution"]
-        direction LR
-        Data[Data<br/>Fetch]
-        ML[ML<br/>Predict]
-        LLM[LLM<br/>Reason]
-        EXP_F[Export<br/>CSV/XLSX]
+    subgraph Actions["⚡ Actions"]
+        Data1[Fetch<br/>Data]
+        Predict[Run ML<br/>Forecast]
+        LLM1[LLM<br/>Analysis]
+        Format[Format<br/>Output]
+    end
+    
+    subgraph Results["📤 Results"]
+        Table[Markdown<br/>Table]
+        Chart[Forecast<br/>Chart]
+        File[CSV/XLSX<br/>File]
     end
     
     CLI --> FC
@@ -143,71 +168,90 @@ flowchart TB
     CLI --> ASK
     CLI --> EXP
     
-    FC --> Data
-    FC --> ML
-    INV --> Data
-    ASK --> LLM
-    EXP --> EXP_F
+    FC --> Data1
+    FC --> Predict
+    INV --> Data1
+    ASK --> LLM1
+    EXP --> Format
     
-    ML --> Output[📊 Output]
-    Data --> Output
-    LLM --> Output
-    EXP_F --> File[💾 File]
+    Predict --> Table
+    Data1 --> Chart
+    LLM1 --> Table
+    Format --> File
     
     style User fill:#4caf50,color:#fff
     style CLI fill:#2196f3,color:#fff
     style Commands fill:#ff9800,color:#fff
-    style Execution fill:#9c27b0,color:#fff
+    style Actions fill:#9c27b0,color:#fff
+    style Results fill:#00bcd4,color:#fff
 ```
 
 ---
 
-## Data Pipeline
+## Inventory Management Flow
 
 ```mermaid
 %%{init: {'theme': 'base'}}%%
 flowchart LR
-    subgraph Ingest["📥 Ingestion"]
-        CSV[CSV Files]
-        API[External APIs]
-        DB[(Database)]
-    end
+    Start([Start]) --> Check[📦 Check<br/>Inventory]
     
-    subgraph Process["🔧 Processing"]
-        Clean[Data<br/>Cleaning]
-        Validate[Validation]
-        Feature[Feature<br/>Engineering]
-    end
+    Check --> Level{Stock<br/>Level?}
     
-    subgraph Store["💾 Storage"]
-        Raw[(Raw)]
-        Processed[(Processed)]
-        Models[(Model<br/>Artifacts)]
-    end
+    Level -->|OK (>30%)| Monitor[👀 Monitor]
+    Level -->|LOW (15-30%)| Alert1[⚠️ Alert<br/>Reorder]
+    Level -->|CRITICAL (<15%)| Alert2[🚨 Urgent<br/>Restock]
     
-    subgraph Serve["📤 Serving"]
-        API_S[REST API]
-        CLI_S[CLI]
-        Dashboard_S[Dashboard]
-    end
+    Monitor --> Predict[📈 Predict<br/>7-day demand]
+    Predict --> Enough{Enough<br/>stock?}
     
-    CSV --> Clean
-    API --> Clean
-    DB --> Clean
+    Enough -->|Yes| Wait[⏰ Wait]
+    Enough -->|No| Recommend[📝 Recommend<br/>order qty]
     
-    Clean --> Validate
-    Validate --> Feature
+    Alert1 --> Recommend
+    Alert2 --> Recommend
     
-    Raw <--> Clean
-    Processed <--> Feature
-    Models <--> Feature
+    Recommend --> Order[🛒 Create<br/>Order]
+    Order --> End([✅ End])
+    Wait --> End
     
-    Feature --> API_S
-    Feature --> CLI_S
-    Feature --> Dashboard_S
+    style Start fill:#4caf50,color:#fff
+    style Check fill:#2196f3,color:#fff
+    style Level fill:#ff9800,color:#fff
+    style Alert1 fill:#ff9800,color:#fff
+    style Alert2 fill:#f44336,color:#fff
+    style Predict fill:#9c27b0,color:#fff
+    style Recommend fill:#00bcd4,color:#fff
+    style Order fill:#4caf50,color:#fff
+    style End fill:#4caf50,color:#fff
+```
+
+---
+
+## Kenya O&G Retail Value Chain
+
+```mermaid
+%%{init: {'theme': 'base'}}%%
+flowchart LR
+    Upstream[🏭 Upstream<br/>Refineries] -->|Bulk Fuel| Midstream[🚛 Midstream<br/>Transportation]
     
-    style Ingest fill:#e3f2fd,stroke:#1976d2
-    style Process fill:#fff3e0,stroke:#f57c00
-    style Store fill:#e8f5e9,stroke:#388e3c
-    style Serve fill:#fce4ec,stroke:#c2185b
+    Midstream -->|Deliver| Retail[⛽ Retail<br/>Stations]
+    
+    Retail -->|Sales Data| AI[🤖 CYSMIC AI<br/>Forecasting]
+    
+    AI -->|Forecast| Inventory[📦 Inventory<br/>Management]
+    AI -->|Predict| Demand[📈 Demand<br/>Planning]
+    AI -->|Alert| Pricing[💰 Dynamic<br/>Pricing]
+    
+    Inventory --> Retail
+    Demand --> Procurement[🛒 Procurement]
+    Pricing --> Retail
+    
+    style Upstream fill:#e3f2fd,stroke:#1976d2
+    style Midstream fill:#e3f2fd,stroke:#1976d2
+    style Retail fill:#fce4ec,stroke:#c2185b
+    style AI fill:#fff3e0,stroke:#f57c00
+    style Inventory fill:#e8f5e9,stroke:#388e3c
+    style Demand fill:#e8f5e9,stroke:#388e3c
+    style Pricing fill:#e8f5e9,stroke:#388e3c
+    style Procurement fill:#f3e5f5,stroke:#7b1fa2
 ```
