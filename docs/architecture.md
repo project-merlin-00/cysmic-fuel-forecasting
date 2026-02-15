@@ -1,156 +1,141 @@
 # CYSMIC Fuel Forecasting - Architecture Diagrams
 
-> These diagrams use Mermaid.js. Render in GitHub, VS Code, or [Mermaid Live Editor](https://mermaid.live)
+> Rendered at [mermaid.live](https://mermaid.live) - export as PNG/SVG
 
 ---
 
-## System Architecture Overview
+## System Architecture
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4a90d9', 'edgeLabelBackground':'#ffffff', 'tertiaryColor': '#f5f5f5'}}}%%
 flowchart TB
-    subgraph "Presentation Layer"
-        CLI[CLI/TUI Interface]
+    subgraph Presentation["📱 Presentation Layer"]
+        direction LR
+        CLI[CLI/TUI]
         API[REST API]
         Dashboard[Dashboard]
     end
     
-    subgraph "Orchestration Layer"
-        Controller[Controller Agent<br/>LangGraph]
-        Scheduler[Workflow Scheduler]
+    subgraph Orchestration["⚙️ Orchestration Layer"]
+        Controller[Controller<br/>LangGraph]
+        Scheduler[Workflow<br/>Scheduler]
     end
     
-    subgraph "Intelligence Layer"
-        ML[ML Ensemble<br/>Prophet, LSTM, XGBoost]
-        LLM[LLM Agent<br/>Ollama/LangChain]
+    subgraph Intelligence["🧠 Intelligence Layer"]
+        direction LR
+        ML[ML Ensemble<br/>Prophet<br/>LSTM<br/>XGBoost]
+        LLM[LLM Agent<br/>Ollama<br/>LangChain]
     end
     
-    subgraph "Data Layer"
-        POS[POS Data]
+    subgraph Data["💾 Data Layer"]
+        direction LR
+        POS[POS Sales]
         Weather[Weather API]
-        Events[Events/Calendar]
+        Events[Events]
         Prices[Fuel Prices]
-        Stations[Station Metadata]
+        Stations[Station Meta]
     end
     
-    CLI --> Controller
-    API --> Controller
-    Dashboard --> Controller
+    Presentation --> Controller
+    Controller --> Orchestration
+    Orchestration --> Intelligence
+    Intelligence --> Data
     
-    Controller --> ML
-    Controller --> LLM
     Controller --> Scheduler
     
-    ML --> POS
-    ML --> Weather
-    ML --> Prices
-    
-    LLM --> Events
-    LLM --> Stations
+    style Presentation fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style Orchestration fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style Intelligence fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    style Data fill:#fce4ec,stroke:#c2185b,stroke-width:2px
 ```
 
 ---
 
-## Agentic Workflow (LangGraph)
+## Agentic Workflow
 
 ```mermaid
+%%{init: {'theme': 'base'}}%%
 flowchart LR
-    subgraph "LangGraph State"
-        State[messages, context,<br/>task, result]
+    Start([Start]) --> DataAgent[📥<br/>Data Agent]
+    DataAgent --> MLAgent[🤖<br/>ML Agent]
+    MLAgent --> LLMAgent[💡<br/>LLM Agent]
+    LLMAgent --> End([End])
+    
+    subgraph State["State Management"]
+        MS[(messages,<br/>context,<br/>task)]
     end
     
-    A[Data Agent] --> B[ML Agent]
-    B --> C[LLM Agent]
-    C --> D[End]
+    DataAgent -.->|reads| MS
+    MLAgent -.->|reads| MS
+    LLMAgent -.->|writes| MS
     
-    A -.->|updates| State
-    B -.->|updates| State
-    C -.->|updates| State
+    style Start fill:#4caf50,stroke:#2e7d32,color:#fff
+    style End fill:#f44336,stroke:#c62828,color:#fff
+    style DataAgent fill:#2196f3,stroke:#1565c0,color:#fff
+    style MLAgent fill:#9c27b0,stroke:#6a1b9a,color:#fff
+    style LLMAgent fill:#ff9800,stroke:#ef6c00,color:#fff
 ```
 
 ---
 
-## Data Pipeline
+## ML Ensemble Pipeline
 
 ```mermaid
+%%{init: {'theme': 'base'}}%%
 flowchart TB
-    subgraph "Ingestion"
-        CSV[CSV Files]
-        API[External APIs]
-        DB[(Database)]
+    Input[📊 Historical<br/>Sales Data] --> Split[Train/Test<br/>Split]
+    
+    subgraph Models["🤖 Model Ensemble"]
+        direction LR
+        Prophet[📈 Prophet<br/>Seasonality]
+        LSTM[🧠 LSTM<br/>Temporal]
+        XGB[🎯 XGBoost<br/>Features]
     end
     
-    subgraph "Processing"
-        Clean[Data Cleaning]
-        Validate[Validation]
-        Feature[Feature Engineering]
+    Split --> Prophet
+    Split --> LSTM
+    Split --> XGB
+    
+    subgraph Ensemble["⚖️ Weighted Ensemble"]
+        Weights[ weights]
+        Combine[Combine]
     end
     
-    subgraph "Storage"
-        Raw[(Raw Data)]
-        Processed[(Processed)]
-        Model[(Model Artifacts)]
-    end
+    Prophet --> Combine
+    LSTM --> Combine
+    XGB --> Combine
+    Weights -.-> Combine
     
-    CSV --> Clean
-    API --> Clean
-    DB --> Clean
+    Combine --> Output[📤<br/>Forecast<br/>Output]
     
-    Clean --> Validate
-    Validate --> Feature
-    
-    Raw <--> Clean
-    Processed <--> Feature
-    Model <--> Feature
+    style Input fill:#e3f2fd,stroke:#1976d2
+    style Models fill:#fff3e0,stroke:#f57c00
+    style Ensemble fill:#e8f5e9,stroke:#388e3c
+    style Output fill:#fce4ec,stroke:#c2185b
 ```
 
 ---
 
-## ML Ensemble Model
+## CLI Commands Flow
 
 ```mermaid
+%%{init: {'theme': 'base'}}%%
 flowchart TB
-    Input[Historical Sales Data]
+    User[👤 User] --> CLI[❯ CLI]
     
-    subgraph "Model Ensemble"
-        Prophet[Prophet<br/>Seasonality]
-        LSTM[LSTM<br/>Temporal Patterns]
-        XGB[XGBoost<br/>Feature-Based]
-    end
-    
-    Ensemble[Weighted Ensemble]
-    Output[Final Forecast]
-    
-    Input --> Prophet
-    Input --> LSTM
-    Input --> XGB
-    
-    Prophet --> Ensemble
-    LSTM --> Ensemble
-    XGB --> Ensemble
-    
-    Ensemble --> Output
-```
-
----
-
-## CLI Interface
-
-```mermaid
-flowchart TB
-    User[(User)] --> CLI[CLI Input]
-    
-    subgraph "Commands"
+    subgraph Commands["📋 Commands"]
         FC[forecast]
         INV[inventory]
         ASK[ask]
         EXP[export]
     end
     
-    subgraph "Functions"
-        Data[Data Retrieval]
-        ML[ML Inference]
-        LLM[LLM Reasoning]
-        EXP_F[Export Functions]
+    subgraph Execution["⚡ Execution"]
+        direction LR
+        Data[Data<br/>Fetch]
+        ML[ML<br/>Predict]
+        LLM[LLM<br/>Reason]
+        EXP_F[Export<br/>CSV/XLSX]
     end
     
     CLI --> FC
@@ -164,79 +149,65 @@ flowchart TB
     ASK --> LLM
     EXP --> EXP_F
     
-    Data --> Out[Output]
-    ML --> Out
-    LLM --> Out
-    EXP_F --> Out
+    ML --> Output[📊 Output]
+    Data --> Output
+    LLM --> Output
+    EXP_F --> File[💾 File]
+    
+    style User fill:#4caf50,color:#fff
+    style CLI fill:#2196f3,color:#fff
+    style Commands fill:#ff9800,color:#fff
+    style Execution fill:#9c27b0,color:#fff
 ```
 
 ---
 
-## Deployment Architecture
+## Data Pipeline
 
 ```mermaid
+%%{init: {'theme': 'base'}}%%
 flowchart LR
-    subgraph "Local Development"
-        Ollama[Ollama<br/>LLM]
-        Python[Python<br/>LangGraph]
+    subgraph Ingest["📥 Ingestion"]
+        CSV[CSV Files]
+        API[External APIs]
+        DB[(Database)]
     end
     
-    subgraph "Production (Future)"
-        Cloud[Cloud GPU]
-        K8s[Kubernetes]
-        HF[HuggingFace<br/>Endpoints]
+    subgraph Process["🔧 Processing"]
+        Clean[Data<br/>Cleaning]
+        Validate[Validation]
+        Feature[Feature<br/>Engineering]
     end
     
-    Ollama -.->|推理| Python
+    subgraph Store["💾 Storage"]
+        Raw[(Raw)]
+        Processed[(Processed)]
+        Models[(Model<br/>Artifacts)]
+    end
     
-    style Ollama fill:#90EE90
-    style Python fill:#ADD8E6
-    style Cloud fill:#FFB6C1
-    style K8s fill:#FFB6C1
-    style HF fill:#FFB6C1
-```
-
----
-
-## Data Flow Example
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant CLI
-    participant LangGraph
-    participant ML
-    participant LLM
+    subgraph Serve["📤 Serving"]
+        API_S[REST API]
+        CLI_S[CLI]
+        Dashboard_S[Dashboard]
+    end
     
-    User->>CLI: forecast NBO001
-    CLI->>LangGraph: Run workflow
+    CSV --> Clean
+    API --> Clean
+    DB --> Clean
     
-    LangGraph->>ML: Get historical data
-    ML-->>LangGraph: Sales data
+    Clean --> Validate
+    Validate --> Feature
     
-    LangGraph->>ML: Run forecast
-    ML-->>LangGraph: Predictions
+    Raw <--> Clean
+    Processed <--> Feature
+    Models <--> Feature
     
-    LangGraph->>LLM: Analyze context
-    LLM-->>LangGraph: Insights
+    Feature --> API_S
+    Feature --> CLI_S
+    Feature --> Dashboard_S
     
-    LangGraph->>CLI: Results + Analysis
-    CLI-->>User: Markdown table
-```
-
----
-
-## Export Pipeline
-
-```mermaid
-flowchart LR
-    Data[Forecast Data] --> CSV[CSV]
-    Data --> XLSX[Excel]
-    Data --> PDF[PDF Report]
-    Data --> API[API Response]
-    
-    CSV --> Share[Share/Email]
-    XLSX --> Share
-    PDF --> Share
-    API --> Integration
+    style Ingest fill:#e3f2fd,stroke:#1976d2
+    style Process fill:#fff3e0,stroke:#f57c00
+    style Store fill:#e8f5e9,stroke:#388e3c
+    style Serve fill:#fce4ec,stroke:#c2185b
 ```
